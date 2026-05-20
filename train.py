@@ -1,10 +1,25 @@
 import os
+import re  # <--- Ditambahkan untuk pemrosesan regex tokenizer
 import joblib
 import pandas as pd
 import kagglehub
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
+
+# =====================================================================
+# KODE BARU: TOKENIZER MANUAL UNTUK MENJAGA ISTILAH IT (C++, C#, .JS, DLL)
+# =====================================================================
+def custom_tokenizer(text):
+    if not text:
+        return []
+    # 1. Ubah ke huruf kecil dan ganti koma/titik koma/garis miring menjadi spasi
+    text = re.sub(r'[\,\;\/]', ' ', text.lower())
+    # 2. Ambil kata, pertahankan tanda spesial IT penting
+    tokens = re.findall(r'\b[a-zA-Z0-9_\-\.]+\b|\b[a-zA-Z]\+\+|\b[a-zA-Z]#', text)
+    # 3. Bersihkan token kosong atau karakter titik tunggal
+    return [t.strip() for t in tokens if t.strip() and t.strip() != '.']
+
 
 # 1. DOWNLOAD DATASET SECARA OTOMATIS LEWAT LIBRARY KAGGLEHUB
 print("Sedang mengunduh dataset IT/Tech langsung dari Kaggle...")
@@ -24,10 +39,15 @@ y_train = X_train.apply(lambda x: 0 if any(kata in str(x).lower() for kata in ka
 
 print(f"Berhasil memproses {len(X_train)} baris data lowongan kerja.")
 
-# 3. PIPELINE TRAINING MODEL MACHINE LEARNING
+# 3. PIPELINE TRAINING MODEL MACHINE LEARNING (Sudah diintegrasikan dengan Custom Tokenizer)
 print("Memulai proses training model...")
 model_pipeline = Pipeline([
-    ('tfidf', TfidfVectorizer(stop_words='english', min_df=2)),
+    ('tfidf', TfidfVectorizer(
+        tokenizer=custom_tokenizer, # <--- Memakai tokenizer kustom kita
+        token_pattern=None,         # <--- Diperlukan jika menggunakan tokenizer kustom
+        stop_words='english', 
+        min_df=2
+    )),
     ('clf', MultinomialNB(alpha=0.1))
 ])
 
@@ -38,4 +58,4 @@ print("Training Sukses!")
 # 4. SIMPAN MODEL JADI (.PKL)
 os.makedirs('model', exist_ok=True)
 joblib.dump(model_pipeline, 'model/model_rekomendasi.pkl')
-print("File 'model/model_rekomendasi.pkl' berhasil dibuat dan siap dipakai Flask!")
+print("File 'model/model_rekomendasi.pkl' berhasil dibuat dengan custom tokenizer dan siap dipakai Flask!")

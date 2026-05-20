@@ -1,91 +1,164 @@
-document.addEventListener('DOMContentLoaded', () => {
-    const skillsInput = document.getElementById('skills');
-    const submitBtn = document.getElementById('submitBtn');
-    const clearBtn = document.getElementById('clearBtn');
-    const resultsSection = document.getElementById('resultsSection');
-    const resultsContainer = document.getElementById('results');
-    const resultsCount = document.getElementById('resultsCount');
-    const emptyState = document.getElementById('emptyState');
+// ============================================================
+// Konfigurasi API
+// ============================================================
+const API_URL = "/api/rekomendasi";
+const USE_MOCK = false; 
 
-    // 1. Fungsi klik tombol contoh cepat (chips)
-    document.querySelectorAll('.chip').forEach(chip => {
-        chip.addEventListener('click', () => {
-            skillsInput.value = chip.getAttribute('data-example');
-        });
-    });
+const $ = (sel) => document.querySelector(sel);
+const textarea = $("#skills");
+const submitBtn = $("#submitBtn");
+const clearBtn = $("#clearBtn");
+const resultsSection = $("#resultsSection");
+const resultsEl = $("#results");
+const resultsCount = $("#resultsCount");
+const emptyState = $("#emptyState");
 
-    // 2. Fungsi Tombol Bersihkan
-    clearBtn.addEventListener('click', () => {
-        skillsInput.value = '';
-        resultsSection.classList.add('hidden');
-        emptyState.classList.remove('hidden');
-    });
-
-    // 3. Fungsi Utama Pencarian Rekomendasi (Saat Tombol Diklik)
-    submitBtn.addEventListener('click', async () => {
-        const skillsText = skillsInput.value.trim();
-
-        if (!skillsText) {
-            alert('Mohon tuliskan deskripsi keahlianmu terlebih dahulu!');
-            return;
-        }
-
-        // Tampilan Mode Loading
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '⚡ Sedang dihitung AI...';
-        resultsContainer.innerHTML = '';
-
-        try {
-            // Mengirim request ke endpoint API Flask
-            const response = await fetch('/api/rekomendasi', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ user_skills: skillsText })
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Gagal merespon API');
-            }
-
-            const jobs = await response.json();
-
-            // Sembunyikan empty state dan munculkan section hasil
-            emptyState.classList.add('hidden');
-            resultsSection.classList.remove('hidden');
-            resultsCount.textContent = `(${jobs.length} Pekerjaan Ditemukan)`;
-
-            // Render Job Cards ke HTML
-            jobs.forEach(job => {
-                const card = document.createElement('div');
-                card.className = 'job-card'; // Memakai class dari style.css Anda
-                card.innerHTML = `
-                    <div style="background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; border-left: 5px solid #28a745; position: relative;">
-                        <span style="position: absolute; top: 20px; right: 20px; background: #e2f0d9; color: #385723; padding: 4px 12px; border-radius: 20px; font-weight: bold; font-size: 13px;">
-                            ${job.match_score} Match
-                        </span>
-                        <h3 style="margin: 0 0 8px 0; color: #333; font-size: 18px; padding-right: 90px;">${job.job_title}</h3>
-                        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666;">
-                            🏢 <b>${job.company}</b> &nbsp;•&nbsp; 📍 <i>${job.location}</i>
-                        </p>
-                        <div style="font-size: 13px; color: #555; background: #f8f9fa; padding: 12px; border-radius: 6px; line-height: 1.4;">
-                            <strong style="color: #444;">Skills Needed:</strong> ${job.skills_required}
-                        </div>
-                    </div>
-                `;
-                resultsContainer.appendChild(card);
-            });
-
-        } catch (error) {
-            // Menampilkan error asli di console log F12 untuk inspect element
-            console.error('Detail Error Aplikasi:', error);
-            alert(`Terjadi kesalahan koneksi ke server AI.\nPesan: ${error.message}`);
-            emptyState.classList.remove('hidden');
-            resultsSection.classList.add('hidden');
-        } finally {
-            // Kembalikan tombol ke keadaan semula
-            submitBtn.disabled = false;
-            submitBtn.innerHTML = '🚀 Rekomendasikan Pekerjaan';
-        }
-    });
+// Chip contoh cepat
+document.querySelectorAll(".chip").forEach((chip) => {
+  chip.addEventListener("click", () => {
+    textarea.value = chip.dataset.example;
+    textarea.focus();
+  });
 });
+
+// Tombol bersihkan form dan hasil
+clearBtn.addEventListener("click", () => {
+  textarea.value = "";
+  resultsEl.innerHTML = "";
+  resultsSection.classList.add("hidden");
+  emptyState.classList.remove("hidden");
+  textarea.focus();
+});
+
+submitBtn.addEventListener("click", handleSubmit);
+textarea.addEventListener("keydown", (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === "Enter") handleSubmit();
+});
+
+async function handleSubmit() {
+  const user_skills = textarea.value.trim();
+  removeError();
+  if (!user_skills) {
+    showError("Silakan masukkan deskripsi keahlianmu terlebih dahulu.");
+    return;
+  }
+
+  setLoading(true);
+  try {
+    const data = USE_MOCK
+      ? await mockRecommend(user_skills)
+      : await fetchRecommend(user_skills);
+
+    renderResults(data);
+  } catch (err) {
+    console.error(err);
+    showError("Gagal mengambil rekomendasi. Periksa koneksi back-end Flask kamu.");
+  } finally {
+    setLoading(false);
+  }
+}
+
+// Mengambil data riil dari route Flask
+async function fetchRecommend(user_skills) {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_skills }),
+  });
+  if (!res.ok) throw new Error("HTTP " + res.status);
+  return res.json();
+}
+
+function setLoading(loading) {
+  submitBtn.disabled = loading;
+  submitBtn.querySelector(".btn-text").innerHTML = loading
+    ? '<span class="spinner"></span> Menganalisis keahlianmu...'
+    : "🚀 Rekomendasikan Pekerjaan";
+}
+
+function renderResults(data) {
+  if (!Array.isArray(data) || data.length === 0) {
+    resultsEl.innerHTML = "";
+    resultsSection.classList.add("hidden");
+    emptyState.classList.remove("hidden");
+    emptyState.querySelector("p").textContent =
+      "Tidak ada rekomendasi cocok. Coba tambahkan lebih banyak keahlian.";
+    return;
+  }
+
+  emptyState.classList.add("hidden");
+  resultsSection.classList.remove("hidden");
+  resultsCount.textContent = `(${data.length} Pekerjaan Ditemukan)`;
+
+  resultsEl.innerHTML = data.map(cardHTML).join("");
+}
+
+// Generator kartu lowongan kerja (Sudah sinkron penuh dengan style.css tema gelap)
+function cardHTML(job) {
+  const score = parseFloat(String(job.match_score).replace("%", "")) || 0;
+  const matchClass = score >= 85 ? "" : score >= 65 ? "mid" : "low";
+
+  // Memecah string skill dari backend ("PYTHON, SQL") menjadi array untuk dijadikan komponen tag bunder
+  const skillsArray = job.skills_required ? job.skills_required.split(", ") : [];
+  const skillsHTML = skillsArray
+    .map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`)
+    .join("");
+
+  return `
+    <article class="job-card">
+      <div class="job-top">
+        <div>
+          <h3 class="job-title">${escapeHtml(job.job_title)}</h3>
+          <div class="job-company">🏢 ${escapeHtml(job.company)}</div>
+          <div class="job-location">📍 ${escapeHtml(job.location)}</div>
+        </div>
+        <span class="match ${matchClass}">
+          ${escapeHtml(job.match_score)} Match
+        </span>
+      </div>
+      <div class="skills" style="margin-top: 12px;">
+        ${skillsHTML ? skillsHTML : '<span class="skill-tag">-</span>'}
+      </div>
+    </article>
+  `;
+}
+
+// Fungsi pengaman XSS agar teks aneh dari database tidak merusak HTML
+function escapeHtml(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+function showError(msg) {
+  removeError();
+  const div = document.createElement("div");
+  div.className = "error";
+  div.id = "errBox";
+  div.textContent = msg;
+  $(".form-card").appendChild(div);
+}
+
+function removeError() { 
+  const e = $("#errBox"); 
+  if (e) e.remove(); 
+}
+
+// ============================================================
+// MOCK back-end (Hanya berjalan jika USE_MOCK = true)
+// ============================================================
+async function mockRecommend(text) {
+  await new Promise((r) => setTimeout(r, 900));
+  return [
+    {
+      job_title: "Junior Software Developer (Mock)",
+      company: "Tech Solutions Inc",
+      location: "Remote",
+      skills_required: "GENERAL PROGRAMMING, PROBLEM SOLVING, GIT",
+      match_score: "75.0%"
+    }
+  ];
+}

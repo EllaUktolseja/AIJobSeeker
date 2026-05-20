@@ -1,0 +1,10 @@
+# Abaikan folder cache Python
+__pycache__/
+*.pyc
+
+# Abaikan environment lokal jika ada
+venv/
+.venv/
+
+# Abaikan model jika ukurannya terlalu besar (Opsional, hapus tanda # di bawah jika ingin mengabaikan)
+model/model_rekomendasi.pkl
