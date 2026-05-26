@@ -81,22 +81,22 @@ def rekomendasi_kerja():
         
         skor_kemiripan_teks = cosine_similarity(matrix_user, matrix_jobs).flatten()
         
-        # D. Perhitungan Bonus Rumpun Kerja
-        bonus_prediksi = []
+        # D. Perhitungan Bonus Rumpun Kerja Menggunakan Metode .apply() (Aman dari Mismatch Index)
         kata_kunci_it = ['developer', 'java', 'python', 'react', 'sql', 'data', 'web', 'php']
         
-        for _, row in df_sampel.iterrows():
+        def hitung_bonus(row):
             is_it_job = any(kata in str(row['skills_lower']) for kata in kata_kunci_it)
-            
             if (prediksi_label == 0 and is_it_job) or (prediksi_label == 1 and not is_it_job):
-                bonus_prediksi.append(0.2)  # Bonus 20%
-            else:
-                bonus_prediksi.append(0.0)
+                return 0.2  # Bonus 20%
+            return 0.0
+
+        # Menerapkan fungsi secara baris demi baris agar index sinkron 100% dengan df_sampel
+        series_bonus = df_sampel.apply(hitung_bonus, axis=1)
 
         # E. Kombinasi Bobot Nilai Akhir (Hybrid Score)
         df_sampel['Final_Score'] = (skor_kemiripan_teks * 0.5) + \
                                    (skor_keyakinan_ai * 0.3) + \
-                                   (pd.Series(bonus_prediksi, index=df_sampel.index) * 0.2)
+                                   (series_bonus * 0.2)
 
         # F. Urutkan Nilai Tertinggi dan Ambil 5 Rekomendasi Teratas
         rekomendasi_teratas = df_sampel.sort_values(by='Final_Score', ascending=False).head(5)
