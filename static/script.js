@@ -93,12 +93,10 @@ function renderResults(data) {
   resultsEl.innerHTML = data.map(cardHTML).join("");
 }
 
-// Generator kartu lowongan kerja (Sudah sinkron penuh dengan style.css tema gelap)
 function cardHTML(job) {
   const score = parseFloat(String(job.match_score).replace("%", "")) || 0;
   const matchClass = score >= 85 ? "" : score >= 65 ? "mid" : "low";
 
-  // Memecah string skill dari backend ("PYTHON, SQL") menjadi array untuk dijadikan komponen tag bunder
   const skillsArray = job.skills_required ? job.skills_required.split(", ") : [];
   const skillsHTML = skillsArray
     .map((s) => `<span class="skill-tag">${escapeHtml(s)}</span>`)
@@ -123,7 +121,6 @@ function cardHTML(job) {
   `;
 }
 
-// Fungsi pengaman XSS agar teks aneh dari database tidak merusak HTML
 function escapeHtml(s) {
   return String(s ?? "")
     .replace(/&/g, "&amp;")
@@ -147,9 +144,6 @@ function removeError() {
   if (e) e.remove(); 
 }
 
-// ============================================================
-// MOCK back-end (Hanya berjalan jika USE_MOCK = true)
-// ============================================================
 async function mockRecommend(text) {
   await new Promise((r) => setTimeout(r, 900));
   return [
